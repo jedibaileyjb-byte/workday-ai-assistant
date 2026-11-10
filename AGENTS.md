@@ -30,3 +30,4 @@ use the editor.
 <!-- LOVABLE:END -->
 
 - Email generation uses the shared existing AI integration; keep email-specific presentation local to its page so other tools remain unchanged.
+- Recover stale route-module imports with one full document reload per URL per session, and make manual retry reload too; retrying a cached rejected import cannot fetch updated chunks.

@@ -26,7 +26,7 @@ describe("Email generation", () => {
     vi.mocked(callAI).mockResolvedValueOnce("Subject: Budget approval\n\nPlease approve the Q3 budget.").mockResolvedValueOnce("Subject: Revised budget request");
     render(<EmailPage />);
     fireEvent.change(screen.getByLabelText("What is the email about?"), { target: { value: "Request Q3 budget approval from Sarah" } });
-    fireEvent.click(screen.getByRole("button", { name: "Friendly" }));
+    fireEvent.click(screen.getByRole("radio", { name: "Friendly" }));
     fireEvent.click(screen.getByRole("button", { name: "Generate Email" }));
     await waitFor(() => expect(screen.getByLabelText("Generated email")).toHaveValue("Subject: Budget approval\n\nPlease approve the Q3 budget."));
     expect(callAI).toHaveBeenCalledWith(expect.arrayContaining([expect.objectContaining({ role: "user", content: expect.stringContaining("Friendly:") })]));

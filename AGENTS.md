@@ -28,3 +28,6 @@ use the editor.
   own key and store it in Secrets.
 - **Secrets.** Lovable manages them. Do not put secret values in the repo.
 <!-- LOVABLE:END -->
+
+- Email generation uses the shared existing AI integration; keep email-specific presentation local to its page so other tools remain unchanged.
+- Recover stale route-module imports with one full document reload per URL per session, and make manual retry reload too; retrying a cached rejected import cannot fetch updated chunks.

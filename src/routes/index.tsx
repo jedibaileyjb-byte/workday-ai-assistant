@@ -80,7 +80,7 @@ function Dashboard() {
           <ul className="space-y-2 text-sm text-muted-foreground">
             <li>• AI-generated content may contain inaccuracies — always review before professional use.</li>
             <li>• Don't submit confidential, personal or client information.</li>
-            <li>• Your work stays in this browser session; prompts go only to your chosen AI provider.</li>
+            <li>• Your work stays in this browser session; prompts go only to Google Gemini.</li>
           </ul>
         </div>
       </section>

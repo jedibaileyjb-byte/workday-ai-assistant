@@ -8,13 +8,13 @@ vi.mock("@/lib/ai", () => ({ callAI: vi.fn(), useAISettings: vi.fn() }));
 describe("Email generation", () => {
   beforeEach(() => {
     sessionStorage.clear();
-    vi.mocked(useAISettings).mockReturnValue({ configured: true, ready: true, settings: { provider: "openai", apiKey: "", model: "gpt-4o-mini" } });
+    vi.mocked(useAISettings).mockReturnValue({ configured: true, ready: true, settings: { provider: "gemini", apiKey: "", model: "gemini-2.5-flash" } });
     vi.mocked(callAI).mockReset();
   });
   afterEach(cleanup);
 
   it("does not generate when no AI provider is connected", async () => {
-    vi.mocked(useAISettings).mockReturnValue({ configured: false, ready: true, settings: { provider: "openai", apiKey: "", model: "gpt-4o-mini" } });
+    vi.mocked(useAISettings).mockReturnValue({ configured: false, ready: true, settings: { provider: "gemini", apiKey: "", model: "gemini-2.5-flash" } });
     render(<EmailPage />);
     fireEvent.click(screen.getByRole("button", { name: "Generate Email" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("No AI provider connected");

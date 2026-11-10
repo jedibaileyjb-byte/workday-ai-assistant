@@ -1,25 +1,25 @@
 import { useEffect, useState } from "react";
+import { GoogleGenAI } from "@google/genai";
 
-export type Provider = "openai" | "openrouter" | "groq";
+export type Provider = "gemini";
 export interface AISettings { provider: Provider; apiKey: string; model: string }
 export interface ChatMsg { role: "system" | "user" | "assistant"; content: string }
 
-export const PROVIDERS: Record<Provider, { label: string; url: string; defaultModel: string; keyUrl: string }> = {
-  openai: { label: "OpenAI", url: "https://api.openai.com/v1/chat/completions", defaultModel: "gpt-4o-mini", keyUrl: "https://platform.openai.com/api-keys" },
-  openrouter: { label: "OpenRouter", url: "https://openrouter.ai/api/v1/chat/completions", defaultModel: "openai/gpt-4o-mini", keyUrl: "https://openrouter.ai/keys" },
-  groq: { label: "Groq", url: "https://api.groq.com/openai/v1/chat/completions", defaultModel: "llama-3.3-70b-versatile", keyUrl: "https://console.groq.com/keys" },
+export const FREE_MODELS = ["gemini-2.5-flash", "gemini-2.5-flash-lite", "gemini-2.0-flash"];
+export const PROVIDERS: Record<Provider, { label: string; defaultModel: string; keyUrl: string }> = {
+  gemini: { label: "Google Gemini", defaultModel: "gemini-2.5-flash", keyUrl: "https://aistudio.google.com/app/apikey" },
 };
 
-const KEY = "awpa.settings";
+const KEY = "awpa.gemini.settings";
 const EVT = "awpa:settings";
-const DEFAULT: AISettings = { provider: "openai", apiKey: "", model: PROVIDERS.openai.defaultModel };
+const DEFAULT: AISettings = { provider: "gemini", apiKey: "", model: PROVIDERS.gemini.defaultModel };
 
 export function loadSettings(): AISettings {
   if (typeof window === "undefined") return DEFAULT;
-  try { return { ...DEFAULT, ...JSON.parse(localStorage.getItem(KEY) || "{}") }; } catch { return DEFAULT; }
+  try { return { ...DEFAULT, ...JSON.parse(sessionStorage.getItem(KEY) || "{}"), provider: "gemini" }; } catch { return DEFAULT; }
 }
 export function saveSettings(s: AISettings) {
-  localStorage.setItem(KEY, JSON.stringify(s));
+  sessionStorage.setItem(KEY, JSON.stringify({ ...s, provider: "gemini" }));
   window.dispatchEvent(new Event(EVT));
 }
 
@@ -30,37 +30,42 @@ export function useAISettings() {
     const sync = () => { setSettings(loadSettings()); setReady(true); };
     sync();
     window.addEventListener(EVT, sync);
-    window.addEventListener("storage", sync);
-    return () => { window.removeEventListener(EVT, sync); window.removeEventListener("storage", sync); };
+    return () => window.removeEventListener(EVT, sync);
   }, []);
   return { settings, ready, configured: !!settings.apiKey.trim() };
 }
 
+export function friendlyGeminiError(e: unknown): string {
+  const raw = (e as Error)?.message || String(e);
+  const m = raw.toLowerCase();
+  if (m.includes("429") || m.includes("resource_exhausted") || m.includes("quota") || m.includes("rate"))
+    return "Gemini free-tier quota or rate limit reached. Wait a minute and try again, or check your usage in Google AI Studio.";
+  if (m.includes("api key not valid") || m.includes("api_key_invalid") || m.includes("401") || m.includes("403") || m.includes("permission"))
+    return "Your Gemini API key was rejected. Please check it in Settings.";
+  if (m.includes("404") || m.includes("not found")) return "That Gemini model isn't available for your key. Choose another model in Settings.";
+  if (m.includes("503") || m.includes("overloaded") || m.includes("unavailable")) return "Gemini is busy right now. Please try again in a moment.";
+  if (m.includes("failed to fetch") || m.includes("network")) return "Couldn't reach Gemini. Check your internet connection.";
+  return raw.length > 220 ? "Gemini request failed. Please try again." : raw;
+}
+
 export async function callAI(messages: ChatMsg[], signal?: AbortSignal): Promise<string> {
   const s = loadSettings();
-  if (!s.apiKey) throw new Error("No API key configured. Add one in Settings.");
-  const p = PROVIDERS[s.provider];
-  let res: Response;
+  if (!s.apiKey) throw new Error("No Gemini API key connected. Add one in Settings.");
+  const ai = new GoogleGenAI({ apiKey: s.apiKey });
+  const system = messages.filter((m) => m.role === "system").map((m) => m.content).join("\n\n");
+  const contents = messages.filter((m) => m.role !== "system").map((m) => ({ role: m.role === "assistant" ? "model" : "user", parts: [{ text: m.content }] }));
+  let text: string | undefined;
   try {
-    res = await fetch(p.url, {
-      method: "POST",
-      signal: signal ?? null,
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${s.apiKey}` },
-      body: JSON.stringify({ model: s.model || p.defaultModel, messages, temperature: 0.7 }),
+    const res = await ai.models.generateContent({
+      model: s.model || PROVIDERS.gemini.defaultModel,
+      contents,
+      config: { ...(system ? { systemInstruction: system } : {}), temperature: 0.7, ...(signal ? { abortSignal: signal } : {}) },
     });
+    text = res.text;
   } catch (e) {
-    if ((e as Error).name === "AbortError") throw e;
-    throw new Error("Couldn't reach the AI service. Check your internet connection.");
+    if ((e as Error).name === "AbortError" || signal?.aborted) throw e;
+    throw new Error(friendlyGeminiError(e));
   }
-  if (!res.ok) {
-    let msg = `Request failed (${res.status})`;
-    try { const j = await res.json(); msg = j?.error?.message || msg; } catch { /* ignore */ }
-    if (res.status === 401) msg = "Your API key was rejected. Please check it in Settings.";
-    if (res.status === 429) msg = "Rate limit or quota reached. Wait a moment or check your provider billing.";
-    throw new Error(msg);
-  }
-  const data = await res.json();
-  const text = data?.choices?.[0]?.message?.content;
-  if (!text) throw new Error("The AI returned an empty response. Try again.");
-  return String(text).trim();
+  if (!text?.trim()) throw new Error("Gemini returned an empty response (it may have been blocked by safety filters). Try rephrasing.");
+  return text.trim();
 }

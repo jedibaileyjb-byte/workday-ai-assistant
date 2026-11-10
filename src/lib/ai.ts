@@ -44,7 +44,7 @@ export async function callAI(messages: ChatMsg[], signal?: AbortSignal): Promise
   try {
     res = await fetch(p.url, {
       method: "POST",
-      signal,
+      signal: signal ?? null,
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${s.apiKey}` },
       body: JSON.stringify({ model: s.model || p.defaultModel, messages, temperature: 0.7 }),
     });
